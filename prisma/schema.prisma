@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  finance
+  clerk
+  documentation
+  sales
+  readOnly
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(readOnly)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FishVariety {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model FormerLoading {
+  id         String   @id @default(uuid())
+  fishCode   String
+  billNo     String   @unique
+  FarmerName String?
+  village    String
+  date       DateTime
+  vehicleNo  String
+
+  totalTrays    Int   @default(0)
+  totalLooseKgs Float @default(0)
+  totalTrayKgs  Float @default(0)
+  totalKgs      Float @default(0)
+  totalPrice    Float @default(0)
+
+  grandTotal Float        @default(0)
+  items      FormerItem[]
+  createdAt  DateTime     @default(now())
+}
+
+model FormerItem {
+  id              String @id @default(uuid())
+  formerLoadingId String // ← changed from Int to String
+  varietyCode     String
+  noTrays         Int
+  trayKgs         Float
+  loose           Float
+  totalKgs        Float
+
+  loading FormerLoading @relation(fields: [formerLoadingId], references: [id], onDelete: Cascade)
+
+  @@index([formerLoadingId])
+}
+
+model AgentLoading {
+  id        String   @id @default(uuid())
+  fishCode  String
+  agentName String
+  billNo    String   @unique
+  village   String
+  date      DateTime
+  vehicleNo String
+
+  // SAME TOTALS AS FARMER — REQUIRED
+  totalTrays    Int   @default(0)
+  totalLooseKgs Float @default(0)
+  totalTrayKgs  Float @default(0)
+  totalKgs      Float @default(0)
+  totalPrice    Float @default(0)
+
+  grandTotal Float @default(0)
+
+  createdAt DateTime    @default(now())
+  items     AgentItem[]
+}
+
+model AgentItem {
+  id             String @id @default(uuid())
+  agentLoadingId String
+  varietyCode    String
+
+  noTrays  Int
+  trayKgs  Float
+  loose    Float
+  totalKgs Float
+
+  pricePerKg Float @default(0)
+  totalPrice Float @default(0)
+
+  loading AgentLoading @relation(fields: [agentLoadingId], references: [id], onDelete: Cascade)
+
+  @@index([agentLoadingId])
+}
+
+model ClientLoading {
+  id            String   @id @default(uuid())
+  clientName    String
+  billNo        String   @unique
+  billNoNumeric Int      @unique
+  date          DateTime
+  vehicleNo     String
+  fishCode      String
+
+  totalTrays    Int   @default(0)
+  totalLooseKgs Float @default(0)
+  totalTrayKgs  Float @default(0)
+  totalKgs      Float @default(0)
+  totalPrice    Float @default(0)
+  grandTotal    Float @default(0)
+
+  items     ClientItem[]
+  createdAt DateTime     @default(now())
+}
+
+model ClientItem {
+  id              String @id @default(uuid())
+  clientLoadingId String
+  varietyCode     String
+
+  noTrays  Int
+  trayKgs  Float
+  loose    Float
+  totalKgs Float
+
+  pricePerKg Float @default(0)
+  totalPrice Float @default(0)
+
+  loading ClientLoading @relation(fields: [clientLoadingId], references: [id], onDelete: Cascade)
+
+  @@index([clientLoadingId])
+}
