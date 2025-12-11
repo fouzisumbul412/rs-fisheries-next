@@ -1,27 +1,41 @@
+// app/api/former-loading/next-bill-no/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
     try {
+        const currentYear = new Date().getFullYear().toString().slice(-2); // "25"
+
+        // Find the latest bill number (any year)
         const last = await prisma.formerLoading.findFirst({
-            orderBy: { billNo: "desc" }, // FIXED: sort by billNo instead of id
+            orderBy: { createdAt: "desc" },
         });
 
         let nextNumber = 1;
 
         if (last?.billNo) {
-            const parts = last.billNo.split("-");
-            const numeric = Number(parts[2] || "0");
-            nextNumber = numeric + 1;
+            // Extract number from: RS-Farmer-25-9999 or RS-Farmer-24-12345
+            const match = last.billNo.match(/RS-Farmer-\d{2}-(\d+)/);
+            if (match) {
+                nextNumber = Number(match[1]) + 1;
+            }
         }
 
-        const formatted = String(nextNumber).padStart(4, "0");
+        // Format: 0001 to 9999 → padded, 10000+ → natural
+        const displayNumber =
+            nextNumber <= 9999 ? String(nextNumber).padStart(4, "0") : String(nextNumber);
+
+        const billNo = `RS-Farmer-${currentYear}-${displayNumber}`;
 
         return NextResponse.json({
-            billNo: `RS-Former-${formatted}`,
+            success: true,
+            billNo,
         });
-    } catch (err) {
-        console.error("Bill no error:", err);
-        return NextResponse.json({ billNo: "RS-Former-0001" });
+    } catch (error) {
+        console.error("Error:", error);
+        return NextResponse.json({
+            billNo: `RS-Farmer-${new Date().getFullYear().toString().slice(-2)}-0001`,
+        });
     }
 }

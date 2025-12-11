@@ -206,7 +206,7 @@ export default function FormerLoading() {
           <FieldLabel>Farmer Bill No</FieldLabel>
           <Input
             readOnly
-            value={billNo}
+            value={billNo} 
             className="bg-gray-100 font-semibold"
           />
         </Field>

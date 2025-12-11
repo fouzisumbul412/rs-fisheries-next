@@ -1,25 +1,37 @@
-import { prisma } from "@/lib/prisma";
+// app/api/client-loading/next-bill-no/route.ts
+
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
     try {
+        const currentYear = new Date().getFullYear().toString().slice(-2); // "25"
+
+    
         const last = await prisma.clientLoading.findFirst({
-            orderBy: { billNoNumeric: "desc" },
+            orderBy: { createdAt: "desc" },
         });
+        let nextNumber = 1;
 
-        const nextNumber = last ? last.billNoNumeric + 1 : 1;
+        if (last?.billNo) {
+            const match = last.billNo.match(/RS-Client-\d{2}-(\d+)/);
+            if (match) {
+                nextNumber = Number(match[1]) + 1;
+            }
+        }
+        const displayNumber =
+            nextNumber <= 9999 ? String(nextNumber).padStart(4, "0") : String(nextNumber);
 
-        const formatted = String(nextNumber).padStart(4, "0");
+        const billNo = `RS-Client-${currentYear}-${displayNumber}`;
 
         return NextResponse.json({
-            billNo: `RS-Client-${formatted}`,
-            billNoNumeric: nextNumber,
+            success: true,
+            billNo,
         });
-    } catch (err) {
-        console.error("Bill no error:", err);
+    } catch (error) {
+        console.error("Error:", error);
         return NextResponse.json({
-            billNo: "RS-Client-0001",
-            billNoNumeric: 1,
+            billNo: `RS-Client-${new Date().getFullYear().toString().slice(-2)}-0001`,
         });
     }
 }

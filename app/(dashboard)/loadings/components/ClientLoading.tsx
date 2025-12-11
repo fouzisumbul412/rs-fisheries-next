@@ -31,12 +31,13 @@ interface ItemRow {
 }
 
 export default function AgentLoading() {
-  const [agentName, setAgentName] = useState("");
+  // const [agentName, setAgentName] = useState("");
   const [village, setVillage] = useState("");
   const [date, setDate] = useState("");
   const [vehicleNo, setVehicleNo] = useState("");
 
   const [billNo, setBillNo] = useState("");
+  const [clientName, setClientName] = useState("");
   const [grandTotal, setGrandTotal] = useState(0);
 
   const [items, setItems] = useState<ItemRow[]>([
@@ -123,7 +124,7 @@ export default function AgentLoading() {
   }, [items]);
 
   const resetForm = () => {
-    setAgentName("");
+    setClientName("");
     setVillage("");
     setDate("");
     setVehicleNo("");
@@ -146,7 +147,7 @@ export default function AgentLoading() {
 
   const handleSave = async () => {
     if (!billNo) return toast.error("Bill number missing");
-    if (!agentName.trim()) return toast.error("Enter Agent Name");
+    if (!clientName.trim()) return toast.error("Enter Agent Name");
 
     const firstCode = items[0].varietyCode;
     if (!firstCode) return toast.error("Select at least one variety");
@@ -163,7 +164,7 @@ export default function AgentLoading() {
     try {
       await axios.post("/api/client-loading", {
         billNo,
-        agentName,
+        clientName,
         village,
         date,
         vehicleNo,
@@ -180,17 +181,17 @@ export default function AgentLoading() {
         })),
       });
 
-      toast.success("Agent loading saved!");
+      toast.success("Client loading saved!");
       resetForm();
     } catch (err) {
-      toast.error("Failed to save agent loading");
+      toast.error("Failed to save Client loading");
     }
   };
 
   return (
     <Card className="rounded-2xl shadow-md p-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">B. Agent Loading</h2>
+        <h2 className="text-xl font-semibold">C. Client Loading</h2>
         <Button onClick={handleSave} className="rounded-2xl">
           <Save className="h-4 w-4 mr-2" /> Save
         </Button>
@@ -199,7 +200,7 @@ export default function AgentLoading() {
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field>
-            <FieldLabel>Agent Bill No</FieldLabel>
+            <FieldLabel>Client Bill No</FieldLabel>
             <Input
               readOnly
               value={billNo}
@@ -208,10 +209,10 @@ export default function AgentLoading() {
           </Field>
 
           <Field>
-            <FieldLabel>Agent Name</FieldLabel>
+            <FieldLabel>Client Name</FieldLabel>
             <Input
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
             />
           </Field>
 

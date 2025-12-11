@@ -110,7 +110,6 @@ model ClientLoading {
   id            String   @id @default(uuid())
   clientName    String
   billNo        String   @unique
-  billNoNumeric Int      @unique
   date          DateTime
   vehicleNo     String
   fishCode      String

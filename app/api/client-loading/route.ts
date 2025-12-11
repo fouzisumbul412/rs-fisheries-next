@@ -1,4 +1,5 @@
 // app/api/client-loading/route.ts
+
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -6,33 +7,23 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
 
-    // Validate required fields
     if (!data.clientName?.trim()) {
-      return NextResponse.json(
-        { success: false, message: "Client name is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Client name required" }, { status: 400 });
     }
 
-    if (!data.billNoNumeric || typeof data.billNoNumeric !== "number") {
-      return NextResponse.json(
-        { success: false, message: "Invalid or missing billNoNumeric" },
-        { status: 400 }
-      );
+    if (!data.billNo) {
+      return NextResponse.json({ success: false, message: "Bill number missing" }, { status: 400 });
     }
 
-    // Calculate totals safely
-    const totalTrays = data.items?.reduce((sum: number, i: any) => sum + (Number(i.noTrays) || 0), 0) || 0;
-    const totalTrayKgs = data.items?.reduce((sum: number, i: any) => sum + (Number(i.trayKgs) || 0), 0) || 0;
-    const totalLooseKgs = data.items?.reduce((sum: number, i: any) => sum + (Number(i.loose) || 0), 0) || 0;
+    const totalTrays = data.items?.reduce((a: number, i: any) => a + (Number(i.noTrays) || 0), 0) || 0;
+    const totalTrayKgs = totalTrays * 35;
+    const totalLooseKgs = data.items?.reduce((a: number, i: any) => a + (Number(i.loose) || 0), 0) || 0;
     const totalKgs = totalTrayKgs + totalLooseKgs;
-    const totalPrice = data.items?.reduce((sum: number, i: any) => sum + (Number(i.totalPrice) || 0), 0) || 0;
 
     const saved = await prisma.clientLoading.create({
       data: {
         clientName: data.clientName.trim(),
-        billNo: data.billNo,
-        billNoNumeric: data.billNoNumeric,
+        billNo: data.billNo,                    // ← from frontend
         date: new Date(data.date),
         vehicleNo: data.vehicleNo || "",
         fishCode: data.fishCode || "",
@@ -40,40 +31,32 @@ export async function POST(req: Request) {
         totalLooseKgs,
         totalTrayKgs,
         totalKgs,
-        totalPrice,
-        grandTotal: totalPrice,
+        totalPrice: 0,
+        grandTotal: totalKgs,
         items: {
-          create: (data.items || []).map((item: any) => ({
-            varietyCode: item.varietyCode || "",
-            noTrays: Number(item.noTrays) || 0,
-            trayKgs: Number(item.trayKgs) || 0,
-            loose: Number(item.loose) || 0,
-            totalKgs: (Number(item.noTrays) || 0) * (Number(item.trayKgs) || 0) + (Number(item.loose) || 0),
-            pricePerKg: Number(item.pricePerKg) || 0,
-            totalPrice: Number(item.totalPrice) || 0,
+          create: data.items.map((i: any) => ({
+            varietyCode: i.varietyCode || "",
+            noTrays: Number(i.noTrays) || 0,
+            trayKgs: (Number(i.noTrays) || 0) * 35,
+            loose: Number(i.loose) || 0,
+            totalKgs: (Number(i.noTrays) || 0) * 35 + (Number(i.loose) || 0),
+            pricePerKg: 0,
+            totalPrice: 0,
           })),
         },
       },
-      include: {
-        items: true,
-      },
+      include: { items: true },
     });
 
-    return NextResponse.json({ success: true, loading: saved });
+    return NextResponse.json({ success: true, data: saved });
   } catch (error: any) {
-    console.error("Error saving client loading:", error);
-
+    console.error("Save error:", error);
     if (error.code === "P2002") {
-      const field = error.meta?.target?.[0];
       return NextResponse.json(
-        { success: false, message: `This ${field === "billNo" ? "bill number" : "bill number"} already exists` },
+        { success: false, message: "Bill number already exists. Please refresh the page." },
         { status: 400 }
       );
     }
-
-    return NextResponse.json(
-      { success: false, message: "Failed to save client loading", error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Save failed" }, { status: 500 });
   }
 }
