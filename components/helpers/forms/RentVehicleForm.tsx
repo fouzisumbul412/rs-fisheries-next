@@ -7,8 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import axios from "axios";
-import { useMutation } from "@tanstack/react-query";
+import axios, { AxiosError } from "axios";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +30,7 @@ export function RentVehicleForm({ onSuccess }: { onSuccess: () => void }) {
   } = useForm<RentFormType>({
     resolver: zodResolver(rentSchema),
   });
+  const queryClient = useQueryClient();
 
   const addMutation = useMutation({
     mutationFn: async (payload: RentFormType & { ownership: string }) => {
@@ -40,10 +41,15 @@ export function RentVehicleForm({ onSuccess }: { onSuccess: () => void }) {
     },
     onSuccess: (data) => {
       toast.success(data?.message ?? "Rent vehicle added successfully");
+      queryClient.invalidateQueries({ queryKey: ["rent-vehicles"] });
       onSuccess();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? "Error adding vehicle");
+      if (err instanceof AxiosError) {
+        toast.error(err.response?.data.message ?? "Error adding vehicle");
+      } else {
+        toast.error(err.message ?? "Error adding vehicle");
+      }
     },
   });
 

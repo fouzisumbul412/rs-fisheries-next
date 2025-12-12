@@ -7,10 +7,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import axios from "axios";
-import { useMutation } from "@tanstack/react-query";
+import axios, { AxiosError } from "axios";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useState } from "react";
 
 const indianVehicleNumberRegex = /^[A-Z]{2}\s[0-9]{2}\s[A-Z]{1,3}\s[0-9]{1,4}$/;
 
@@ -58,6 +66,20 @@ export function OwnVehicleForm({ onSuccess }: { onSuccess: () => void }) {
   } = useForm<OwnFormType>({
     resolver: zodResolver(ownSchema),
   });
+  const [selected, setSelected] = useState("");
+  const queryClient = useQueryClient();
+
+  const {
+    data: drivers,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["available-drivers"],
+    queryFn: async () => {
+      const { data: res } = await axios.get("/api/driver/available");
+      return res.data;
+    },
+  });
 
   const addMutation = useMutation({
     mutationFn: async (payload: OwnFormType & { ownership: string }) => {
@@ -68,18 +90,24 @@ export function OwnVehicleForm({ onSuccess }: { onSuccess: () => void }) {
     },
     onSuccess: (data) => {
       toast.success(data?.message ?? "Vehicle added successfully");
+      queryClient.invalidateQueries({ queryKey: ["own-vehicles"] });
       onSuccess();
     },
     onError: async (err: any) => {
-      const msg =
-        err?.response?.data?.message || err?.message || "Something went wrong";
-
-      toast.error(msg);
+      if (err instanceof AxiosError) {
+        toast.error(err.response?.data.message ?? "Something went wrong");
+      } else {
+        toast.error(err.message ?? "Something went wrong");
+      }
     },
   });
 
   const onSubmit = (data: OwnFormType) => {
-    addMutation.mutate({ ...data, ownership: "OWN" });
+    addMutation.mutate({
+      ...data,
+      ownership: "OWN",
+      assignedDriverId: selected,
+    });
   };
 
   const loading = addMutation.isPending;
@@ -216,7 +244,33 @@ export function OwnVehicleForm({ onSuccess }: { onSuccess: () => void }) {
       {/* Driver */}
       <div className="flex flex-col space-y-1">
         <Label>Assigned Driver ID (optional)</Label>
-        <Input {...register("assignedDriverId")} placeholder="Driver ID" />
+
+        <div className="space-y-3">
+          <label className="text-sm font-medium">Select Driver</label>
+
+          <Select onValueChange={setSelected}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose driver" />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoading ? (
+                <div className="p-2 text-sm text-muted-foreground">
+                  Loading...
+                </div>
+              ) : drivers?.length ? (
+                drivers.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="p-2 text-sm text-muted-foreground">
+                  No available drivers
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
         {errors.assignedDriverId && (
           <p className="text-red-600 text-sm">
             {errors.assignedDriverId.message}
