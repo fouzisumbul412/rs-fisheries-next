@@ -52,6 +52,38 @@ export const GET = apiHandler(async () => {
   const vehicles = await prisma.vehicle.findMany({
     where: { ownership: "RENT" },
     orderBy: { createdAt: "desc" },
+    include: {
+      assignedDriver: {
+        select: {
+          assignedVehicle: {
+            select: {
+              vehicleNumber: true,
+              id: true,
+            },
+          },
+          name: true,
+          phone: true,
+          id: true,
+        },
+      },
+    },
+    omit: {
+      manufacturer: true,
+      model: true,
+      yearOfManufacture: true,
+      fuelType: true,
+      engineNumber: true,
+      chassisNumber: true,
+      capacityInTons: true,
+      bodyType: true,
+      rcValidity: true,
+      fitnessExpiry: true,
+      insuranceExpiry: true,
+      pollutionExpiry: true,
+      permitExpiry: true,
+      roadTaxExpiry: true,
+      isActive: true,
+    },
   });
 
   return NextResponse.json(

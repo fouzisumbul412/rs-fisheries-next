@@ -47,6 +47,7 @@ export const POST = apiHandler(async (req: Request) => {
 export const GET = apiHandler(async () => {
   const drivers = await prisma.driver.findMany({
     orderBy: { createdAt: "desc" },
+    include: { assignedVehicle: true },
   });
 
   return NextResponse.json(

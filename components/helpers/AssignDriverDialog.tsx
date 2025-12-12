@@ -16,18 +16,23 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select";
-import axios from "axios";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import axios, { AxiosError } from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 export function AssignDriverDialog({ vehicleId }: { vehicleId: string }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState("");
-
-  const { data: drivers } = useQuery({
+  const queryClient = useQueryClient();
+  const {
+    data: drivers,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["available-drivers"],
     queryFn: async () => {
-      const { data: res } = await axios.get("/api/drivers/available");
+      const { data: res } = await axios.get("/api/driver/available");
       return res.data;
     },
   });
@@ -40,11 +45,20 @@ export function AssignDriverDialog({ vehicleId }: { vehicleId: string }) {
       });
       return data;
     },
-    onSuccess: () => {
-      toast.success("Driver assigned successfully");
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["available-drivers"] });
+      queryClient.invalidateQueries({ queryKey: ["own-vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["rent-vehicles"] });
+      toast.success(data.message ?? "Driver assigned successfully");
       setOpen(false);
     },
-    onError: () => toast.error("Failed to assign driver"),
+    onError: (err) => {
+      if (err instanceof AxiosError) {
+        toast.error(err.response?.data.message ?? "Failed to assign driver");
+      } else {
+        toast.error(err.message ?? "Failed to assign driver");
+      }
+    },
   });
 
   return (
@@ -68,7 +82,11 @@ export function AssignDriverDialog({ vehicleId }: { vehicleId: string }) {
               <SelectValue placeholder="Choose driver" />
             </SelectTrigger>
             <SelectContent>
-              {drivers?.length ? (
+              {isLoading ? (
+                <div className="p-2 text-sm text-muted-foreground">
+                  Loading...
+                </div>
+              ) : drivers?.length ? (
                 drivers.map((d: any) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
@@ -85,9 +103,12 @@ export function AssignDriverDialog({ vehicleId }: { vehicleId: string }) {
 
         <Button
           className="w-full"
-          disabled={!selected}
+          disabled={!selected || mutation.isPending}
           onClick={() => mutation.mutate()}
         >
+          {mutation.isPending && (
+            <Loader2 className="animate-spin h-4 w-4 mr-2" />
+          )}
           Assign
         </Button>
       </DialogContent>
