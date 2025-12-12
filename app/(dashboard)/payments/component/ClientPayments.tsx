@@ -238,9 +238,9 @@ export function ClientPayments() {
                 ) : (
                   clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
-                      <div className="flex justify-between items-center w-full py-2">
+                      <div className="flex justify-between items-center gap-3 w-full py-2">
                         <span className="font-medium">{client.clientName}</span>
-                        <span className="text-lg font-bold text-green-600">
+                        <span className="text-lg font-bold">
                           {formatCurrency(client.totalDue)}
                         </span>
                       </div>
@@ -279,7 +279,7 @@ export function ClientPayments() {
             onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
             placeholder="Enter amount"
             min="1"
-            className="text-3xl font-bold text-green-600"
+            className="text-3xl font-bold"
             required
           />
         </Field>

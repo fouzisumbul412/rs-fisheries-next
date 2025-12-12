@@ -244,20 +244,7 @@ enum PaymentMode {
   CHEQUE
 }
 
-model Driver {
-  id        String  @id @default(cuid())
-  name      String
-  phone     String?
-  licenseNo String? // DL Number
-  address   String?
-  isActive  Boolean @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relationship: One driver can be assigned to many vehicles
-  vehicles Vehicle[]
-}
 
 model VehicleEntry {
   id        String  @id @default(cuid())
@@ -330,4 +317,16 @@ model Vehicle {
 
   // 1 Vehicle → Many Trips
   trips VehicleEntry[]
+}
+model Driver {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String   @unique
+  licenseNumber String   @unique
+  address       String
+  age           Int
+  aadharNumber  String   @unique
+  createdAt     DateTime @default(now())
+
+  vehicles Vehicle[]
 }
