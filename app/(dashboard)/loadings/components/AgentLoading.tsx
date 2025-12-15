@@ -34,6 +34,7 @@ export default function AgentLoading() {
   const [date, setDate] = useState("");
   const [vehicleNo, setVehicleNo] = useState("");
   const [fishCode, setFishCode] = useState("");
+  // const [vehicleId, setVehicleId] = useState("");
 
   const [items, setItems] = useState<ItemRow[]>([
     {
@@ -48,6 +49,7 @@ export default function AgentLoading() {
   ]);
 
   const [grandTotal, setGrandTotal] = useState(0);
+  // if (!vehicleNo) return toast.error("Select a vehicle");
 
   const { data: varieties = [] } = useQuery({
     queryKey: ["varieties"],
@@ -56,7 +58,13 @@ export default function AgentLoading() {
       return res.data.data || [];
     },
   });
-
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["assigned-vehicles"],
+    queryFn: async () => {
+      const res = await axios.get("/api/vehicles/assign-driver");
+      return res.data.data;
+    },
+  });
   // Helper to get fish name
   const getVarietyName = (code: string) => {
     return varieties.find((v: any) => v.code === code)?.name || "";
@@ -226,11 +234,20 @@ export default function AgentLoading() {
             />
           </Field>
           <Field>
-            <FieldLabel>Vehicle No</FieldLabel>
-            <Input
-              value={vehicleNo}
-              onChange={(e) => setVehicleNo(e.target.value)}
-            />
+            <FieldLabel>Select Vehicle</FieldLabel>
+            <Select value={vehicleNo} onValueChange={setVehicleNo}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Vehicle" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {vehicles.map((v: any) => (
+                  <SelectItem key={v.id} value={v.vehicleNumber}>
+                    {v.vehicleNumber} – {v.assignedDriver?.name || "No Driver"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
 

@@ -1,31 +1,25 @@
+// app/(dashboard)/receipts/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import { CardCustom } from "@/components/ui/card-custom";
 import { Button } from "@/components/ui/button";
-import {
-  IndianRupee,
-  Calendar,
-  User,
-  Package,
-  FileText,
-  Download,
-  Printer,
-} from "lucide-react";
+import { IndianRupee, Calendar, User, Package, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "vendor" | "client" | "employee" | "packing";
 
 interface BaseReceipt {
   id: string;
-  date: string | Date;
+  date: string | Date | null;
+  createdAt?: string;
   amount: number;
   totalAmount?: number;
   paymentMode?: string;
   reference?: string | null;
-  createdAt?: string;
-  imageUrl?: string; // for client
+  imageUrl?: string;
+  billNo?: string;
 }
 
 interface VendorReceipt extends BaseReceipt {
@@ -46,10 +40,13 @@ interface PackingReceipt extends BaseReceipt {
   mode: string;
   workers: number;
   temperature: number;
-  createdBy?: { name: string | null } | null;
+  createdBy?: { name: string | null };
+  paymentMode?: string;
+  reference?: string | null;
+  billNo?: string;
 }
 
-type Receipt = VendorReceipt | ClientReceipt | EmployeeReceipt | PackingReceipt;
+type Receipt = BaseReceipt;
 
 const formatCurrency = (amt: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -58,18 +55,9 @@ const formatCurrency = (amt: number) =>
     maximumFractionDigits: 0,
   }).format(amt);
 
-const formatDate = (
-  date: string | Date,
-  format: "short" | "long" = "short"
-) => {
-  const d = new Date(date);
-  if (format === "short") {
-    return d.toLocaleDateString("en-IN");
-  }
-  return new Intl.DateTimeFormat("en-IN", {
-    year: "numeric",
-    month: "long",
-  }).format(d);
+const formatDate = (date: string | Date | null | undefined) => {
+  if (!date) return "N/A";
+  return new Date(date).toLocaleDateString("en-IN");
 };
 
 export default function ReceiptsPage() {
@@ -78,11 +66,11 @@ export default function ReceiptsPage() {
   const [loading, setLoading] = useState(true);
 
   const tabs = [
-    { id: "vendor", label: "Vendor Receipt", icon: User },
-    { id: "client", label: "Client Receipt", icon: User },
-    { id: "employee", label: "Employee Receipt", icon: User },
-    { id: "packing", label: "Packing Receipt", icon: Package },
-  ] as const;
+    { id: "vendor" as const, label: "Vendor Receipt", icon: User },
+    { id: "client" as const, label: "Client Receipt", icon: User },
+    { id: "employee" as const, label: "Employee Receipt", icon: User },
+    { id: "packing" as const, label: "Packing Receipt", icon: Package },
+  ];
 
   const apiMap: Record<Tab, string> = {
     vendor: "/api/payments/vendor",
@@ -97,10 +85,13 @@ export default function ReceiptsPage() {
       try {
         const res = await fetch(apiMap[activeTab]);
         if (!res.ok) throw new Error("Failed to load");
-
         const json = await res.json();
 
-        let data: Receipt[] = json.payments || json.records || json.data || [];
+        const rawData = json.payments || json.records || json.data || [];
+        const data: Receipt[] = rawData.map((item: any) => ({
+          ...item,
+          date: item.date || item.createdAt || new Date(),
+        }));
 
         setReceipts(data);
       } catch (err) {
@@ -110,89 +101,104 @@ export default function ReceiptsPage() {
         setLoading(false);
       }
     }
-
     fetchData();
   }, [activeTab]);
 
-  // Generate and download PDF
-  const generatePDF = async (receipt: Receipt, type: Tab) => {
+  const generatePDF = async (receipt: Receipt) => {
+    if (activeTab !== "packing") {
+      toast.error("Custom receipt design available only for Packing");
+      return;
+    }
+
     try {
-      // Fetch next invoice number
-      const numRes = await fetch(`/api/invoice-number?type=${type}`);
-      const numJson = await numRes.json();
-      const invoiceNumber = numJson.invoiceNumber;
-
       const doc = new jsPDF("p", "mm", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
 
-      // Common Header
-      doc.setFontSize(18);
-      doc.text("RS Fisheries", 105, 20, { align: "center" });
-      doc.setFontSize(12);
-      doc.text(invoiceNumber, 105, 30, { align: "center" });
-      doc.text(`Date: ${formatDate(new Date())}`, 105, 40, {
+      // Logo (top-right)
+      try {
+        doc.addImage("/favicon.jpg", "JPEG", pageWidth - 70, 10, 50, 50);
+      } catch (e) {
+        console.warn("Logo failed to load");
+      }
+
+      // Company Header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("RS Fisheries", 20, 25);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.text("Fresh & Frozen Seafood Suppliers", 20, 35);
+      doc.text("123 Fishery Road, Coastal Town", 20, 43);
+      doc.text("Hyderabad, India - 500001", 20, 51);
+      doc.text("Phone: +91 98765 43210", 20, 59);
+      doc.text("Email: info@rsfisheries.com", 20, 67);
+
+      // Title
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.text("PACKING AMOUNT RECEIPT", pageWidth / 2, 90, {
         align: "center",
       });
 
-      // Type-specific content
-      if (type === "vendor") {
-        // Vendor Invoice (based on img 1 design)
-        doc.setFontSize(14);
-        doc.text("INVOICE", 105, 55, { align: "center" });
+      // Bill No & Date
+      doc.setFontSize(12);
+      doc.text(`Bill No: ${receipt.billNo || "N/A"}`, pageWidth - 90, 105);
+      doc.text(`Date: ${formatDate(receipt.date)}`, pageWidth - 90, 115);
 
-        doc.setFontSize(10);
-        doc.text("Supplier: RS Fisheries", 20, 70);
-        doc.text("Buyer: " + (receipt as VendorReceipt).vendorName, 20, 80);
+      // Separator
+      doc.setLineWidth(0.5);
+      doc.line(20, 125, pageWidth - 20, 125);
 
-        doc.text("Item: Fish Delivery", 20, 100);
-        doc.text("Amount: " + formatCurrency(receipt.amount), 20, 110);
-        doc.text("Payment Mode: " + receipt.paymentMode, 20, 120);
-        doc.text("Reference: " + (receipt.reference || "N/A"), 20, 130);
+      // Details
+      let y = 140;
+      const addRow = (label: string, value: string | number) => {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(`${label}:`, 30, y);
+        doc.setFont("helvetica", "bold");
+        doc.text(String(value), pageWidth - 30, y, { align: "right" });
+        y += 15;
+      };
 
-        doc.text("Total: " + formatCurrency(receipt.amount), 20, 150);
+      const r = receipt as PackingReceipt;
+      addRow("Created By", r.createdBy?.name || "RS Fisheries Admin");
+      addRow("Mode", r.mode === "loading" ? "Loading" : "Unloading");
+      addRow("Number of Workers", r.workers);
+      addRow("Temperature", `${r.temperature}°C`);
 
-        doc.text("Thank you for your business!", 105, 200, { align: "center" });
-      } else if (type === "client") {
-        // Client Receipt (simple with image if available)
-        doc.setFontSize(14);
-        doc.text("RECEIPT", 105, 55, { align: "center" });
+      const payMode =
+        r.paymentMode === "CASH"
+          ? "Cash"
+          : r.paymentMode === "AC"
+          ? "A/C Transfer"
+          : r.paymentMode === "UPI"
+          ? "UPI / PhonePe"
+          : r.paymentMode === "CHEQUE"
+          ? "Cheque"
+          : "N/A";
+      addRow("Payment Mode", payMode);
 
-        doc.setFontSize(10);
-        doc.text("From: RS Fisheries", 20, 70);
-        doc.text("To: " + (receipt as ClientReceipt).clientName, 20, 80);
+      if (r.reference) addRow("Reference", r.reference);
 
-        doc.text("Amount Received: " + formatCurrency(receipt.amount), 20, 100);
-        doc.text("Payment Mode: " + receipt.paymentMode, 20, 110);
-        doc.text("Reference: " + (receipt.reference || "N/A"), 20, 120);
+      // Total
+      doc.setLineWidth(1);
+      doc.line(30, y - 5, pageWidth - 30, y - 5);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      addRow("Total Amount", formatCurrency(r.amount));
 
-        if (receipt.imageUrl) {
-          doc.addImage(receipt.imageUrl, "JPEG", 20, 140, 170, 100); // Adjust size
-        }
-      } else if (type === "employee" || type === "packing") {
-        // Payslip (based on img 2 design)
-        doc.setFontSize(14);
-        doc.text("PAYSLIP / RECEIPT", 105, 55, { align: "center" });
+      // Footer
+      y += 40;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("Thank you for your service!", pageWidth / 2, y, {
+        align: "center",
+      });
+      y += 15;
+      doc.text("Authorized Signature ___________________", pageWidth - 80, y);
 
-        doc.setFontSize(10);
-        doc.text(
-          "Employee: " + (receipt as EmployeeReceipt).employeeName,
-          20,
-          70
-        );
-        doc.text("Date: " + formatDate(receipt.date, "long"), 20, 80);
-
-        doc.text("Amount Paid: " + formatCurrency(receipt.amount), 20, 100);
-        doc.text("Payment Mode: " + receipt.paymentMode, 20, 110);
-        doc.text("Reference: " + (receipt.reference || "N/A"), 20, 120);
-
-        doc.text("Net Amount: " + formatCurrency(receipt.amount), 20, 140);
-
-        doc.text("Thank you!", 105, 200, { align: "center" });
-      }
-
-      // Download
-      doc.save(`${type}-receipt-${invoiceNumber}.pdf`);
-
-      // Print (opens print dialog)
+      doc.save(`packing-receipt-${r.billNo || "draft"}.pdf`);
       doc.autoPrint();
       window.open(doc.output("bloburl"), "_blank");
     } catch (err) {
@@ -201,7 +207,7 @@ export default function ReceiptsPage() {
   };
 
   const getTitle = () => {
-    const map = {
+    const map: Record<Tab, string> = {
       vendor: "Vendor Payment Receipts",
       client: "Client Payment Receipts",
       employee: "Employee Salary Receipts",
@@ -215,11 +221,20 @@ export default function ReceiptsPage() {
     0
   );
 
+  const getPartyName = (r: Receipt) => {
+    if (activeTab === "vendor") return (r as VendorReceipt).vendorName || "—";
+    if (activeTab === "client") return (r as ClientReceipt).clientName || "—";
+    if (activeTab === "employee")
+      return (r as EmployeeReceipt).employeeName || "—";
+    if (activeTab === "packing")
+      return (r as PackingReceipt).createdBy?.name || "RS Fisheries Admin";
+    return "—";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-3xl font-bold">Receipts</h1>
-
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -241,7 +256,7 @@ export default function ReceiptsPage() {
       <CardCustom title={getTitle()}>
         {loading ? (
           <div className="py-12 text-center text-muted-foreground">
-            Loading receipts...
+            Loading...
           </div>
         ) : receipts.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
@@ -268,41 +283,54 @@ export default function ReceiptsPage() {
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
-                        {formatDate(
-                          r.date || (r as any).createdAt || Date.now()
-                        )}
+                        {formatDate(r.date || r.createdAt)}
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <div className="font-medium">
-                        {(r as any).clientName ||
-                          (r as any).vendorName ||
-                          (r as any).employeeName ||
-                          (r as any).createdBy?.name ||
-                          "—"}
-                      </div>
-                      {(r as any).mode && (
-                        <div className="text-xs text-muted-foreground capitalize">
-                          {(r as any).mode}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="text-sm">
-                        {(r as any).paymentMode || "—"}
-                      </div>
-                      {(r as any).reference && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Ref: {(r as any).reference}
+                      <div className="font-medium">{getPartyName(r)}</div>
+                      {activeTab === "packing" && r.billNo && (
+                        <div className="text-xs font-medium text-blue-600 mt-1">
+                          Bill: {r.billNo}
                         </div>
                       )}
                       {activeTab === "packing" &&
-                        (r as any).workers !== undefined && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Workers: {(r as any).workers} | Temp:{" "}
-                            {(r as any).temperature}°C
+                        (r as PackingReceipt).mode && (
+                          <div className="text-xs text-muted-foreground capitalize mt-1">
+                            {(r as PackingReceipt).mode}
                           </div>
                         )}
+                    </td>
+                    <td className="py-4 px-4">
+                      {activeTab === "packing" ? (
+                        <>
+                          <div className="text-xs text-muted-foreground">
+                            Payment:{" "}
+                            {r.paymentMode === "CASH"
+                              ? "Cash"
+                              : r.paymentMode === "AC"
+                              ? "A/C Transfer"
+                              : r.paymentMode === "UPI"
+                              ? "UPI/PhonePe"
+                              : r.paymentMode === "CHEQUE"
+                              ? "Cheque"
+                              : "N/A"}
+                            {r.reference && ` | Ref: ${r.reference}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Workers: {(r as PackingReceipt).workers} | Temp:{" "}
+                            {(r as PackingReceipt).temperature}°C
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">
+                          {r.paymentMode || "—"}
+                          {r.reference && (
+                            <span className="block mt-1">
+                              Ref: {r.reference}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-1 text-lg font-bold text-green-600">
@@ -315,7 +343,7 @@ export default function ReceiptsPage() {
                         variant="outline"
                         size="sm"
                         className="gap-2"
-                        onClick={() => generatePDF(r, activeTab)}
+                        onClick={() => generatePDF(r)}
                       >
                         <FileText className="w-4 h-4" />
                         Generate Receipt

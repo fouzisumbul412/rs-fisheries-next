@@ -39,6 +39,7 @@ export default function AgentLoading() {
   const [billNo, setBillNo] = useState("");
   const [clientName, setClientName] = useState("");
   const [grandTotal, setGrandTotal] = useState(0);
+  // const [vehicleId, setVehicleId] = useState("");
 
   const [items, setItems] = useState<ItemRow[]>([
     {
@@ -60,7 +61,13 @@ export default function AgentLoading() {
       return res.data.data || [];
     },
   });
-
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["assigned-vehicles"],
+    queryFn: async () => {
+      const res = await axios.get("/api/vehicles/assign-driver");
+      return res.data.data;
+    },
+  });
   // FETCH BILL NO
   const { data: billData, refetch: refetchBillNo } = useQuery({
     queryKey: ["agent-bill-no"],
@@ -234,11 +241,21 @@ export default function AgentLoading() {
           </Field>
 
           <Field>
-            <FieldLabel>Vehicle No</FieldLabel>
-            <Input
-              value={vehicleNo}
-              onChange={(e) => setVehicleNo(e.target.value)}
-            />
+            <FieldLabel>Select Vehicle</FieldLabel>
+
+            <Select value={vehicleNo} onValueChange={setVehicleNo}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Vehicle" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {vehicles.map((v: any) => (
+                  <SelectItem key={v.id} value={v.vehicleNumber}>
+                    {v.vehicleNumber} – {v.assignedDriver?.name || "No Driver"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
         </div>
 

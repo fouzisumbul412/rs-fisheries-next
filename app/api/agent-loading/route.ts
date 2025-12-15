@@ -1,4 +1,4 @@
-// app\api\agent-loading\route.ts
+// app/api/agent-loading/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -6,35 +6,89 @@ export async function POST(req: Request) {
     try {
         const data = await req.json();
 
+        // ---------- VALIDATIONS ----------
+        if (!data.vehicleNo?.trim()) {
+            return NextResponse.json(
+                { success: false, message: "Vehicle is required" },
+                { status: 400 }
+            );
+        }
+
+        if (!data.agentName?.trim()) {
+            return NextResponse.json(
+                { success: false, message: "Agent name is required" },
+                { status: 400 }
+            );
+        }
+
+        if (!data.billNo?.trim()) {
+            return NextResponse.json(
+                { success: false, message: "Bill number is required" },
+                { status: 400 }
+            );
+        }
+
+        if (!Array.isArray(data.items) || data.items.length === 0) {
+            return NextResponse.json(
+                { success: false, message: "At least one item is required" },
+                { status: 400 }
+            );
+        }
+
+        // ---------- VEHICLE NORMALIZATION ----------
+        const normalized = data.vehicleNo
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, "");
+
+        const vehicles = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id
+      FROM "Vehicle"
+      WHERE REPLACE(UPPER("vehicleNumber"), ' ', '') = ${normalized}
+      LIMIT 1
+    `;
+
+        if (!vehicles.length) {
+            return NextResponse.json(
+                { success: false, message: `Vehicle ${data.vehicleNo} not found` },
+                { status: 400 }
+            );
+        }
+
+        // ---------- SAVE ----------
         const saved = await prisma.agentLoading.create({
             data: {
-                fishCode: data.fishCode || "na",
-                agentName: data.agentName,
-                billNo: data.billNo,
-                village: data.village,
+                fishCode: data.fishCode || "NA",
+                agentName: data.agentName.trim(),
+                billNo: data.billNo.trim(),
+                village: data.village?.trim() || "",
                 date: new Date(data.date),
-                vehicleNo: data.vehicleNo,
 
-                totalTrays: data.totalTrays,
-                totalLooseKgs: data.totalLooseKgs,
-                totalTrayKgs: data.totalTrayKgs,
-                totalKgs: data.totalKgs,
+                vehicle: {
+                    connect: { id: vehicles[0].id },
+                },
+
+                totalTrays: Number(data.totalTrays) || 0,
+                totalLooseKgs: Number(data.totalLooseKgs) || 0,
+                totalTrayKgs: Number(data.totalTrayKgs) || 0,
+                totalKgs: Number(data.totalKgs) || 0,
                 totalPrice: 0,
-                grandTotal: data.grandTotal,
+                grandTotal: Number(data.grandTotal) || 0,
 
                 items: {
                     create: data.items.map((item: any) => ({
                         varietyCode: item.varietyCode,
-                        noTrays: item.noTrays,
-                        trayKgs: item.noTrays * 35,
-                        loose: item.loose,
-                        totalKgs: item.noTrays * 35 + item.loose,
-                        pricePerKg: 0,        // ADD THIS
-                        totalPrice: 0,        // ADD THIS
+                        noTrays: Number(item.noTrays) || 0,
+                        trayKgs: (Number(item.noTrays) || 0) * 35,
+                        loose: Number(item.loose) || 0,
+                        totalKgs:
+                            (Number(item.noTrays) || 0) * 35 +
+                            (Number(item.loose) || 0),
+                        pricePerKg: 0,
+                        totalPrice: 0,
                     })),
                 },
             },
-
             include: { items: true },
         });
 
@@ -47,6 +101,8 @@ export async function POST(req: Request) {
         );
     }
 }
+
+
 export async function GET() {
     try {
         const loadings = await prisma.agentLoading.findMany({
@@ -63,11 +119,21 @@ export async function GET() {
                         totalPrice: true,
                     },
                 },
+                vehicle: {
+                    select: {
+                        vehicleNumber: true,
+                    },
+                },
             },
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json({ data: loadings });
+        const formatted = loadings.map((l) => ({
+            ...l,
+            vehicleNo: l.vehicle?.vehicleNumber ?? "",
+        }));
+
+        return NextResponse.json({ data: formatted });
     } catch (error) {
         console.error("Error fetching agent loadings:", error);
         return NextResponse.json(

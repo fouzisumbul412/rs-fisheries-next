@@ -14,7 +14,7 @@ import {
   Warehouse,
   Users,
 } from "lucide-react";
-
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarHeader,
@@ -27,6 +27,8 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useEffect } from "react";
+import { useVendorBillsBadge } from "../providers/VendorBillsBadgeProvider";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -45,6 +47,13 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+
+  const { newVendorBillsCount, markVendorBillsAsSeen } = useVendorBillsBadge();
+  useEffect(() => {
+    if (pathname === "/vendor-bills") {
+      markVendorBillsAsSeen();
+    }
+  }, [pathname, markVendorBillsAsSeen]);
 
   return (
     <Sidebar collapsible="icon" className="border-r bg-white">
@@ -71,6 +80,11 @@ export default function AppSidebar() {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
 
+                // Compute badge for vendor-bills
+                const showBadge =
+                  item.href === "/vendor-bills" && newVendorBillsCount > 0;
+                const badgeCount = newVendorBillsCount;
+
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
@@ -81,6 +95,14 @@ export default function AppSidebar() {
                       <Link href={item.href}>
                         <Icon className="h-4 w-4" />
                         <span>{item.label}</span>
+                        {showBadge && !collapsed && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-auto text-xs"
+                          >
+                            {badgeCount > 99 ? "99+" : badgeCount}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
